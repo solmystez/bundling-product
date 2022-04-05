@@ -76,27 +76,67 @@ router.post('/create', verified, async (req, res) => {
 })
 
 router.delete('/delete/:id', verified, async (req, res) => {
-    const bundle = Bundle.findById(req.params.id).then(obj => {
-        return res.json(obj);
+    const bundle = Bundle.findById(req.params.id).remove().exec().then(obj => {
+        return res.json(obj)
     }).catch(err => {
+        console.log("error!")
         return res.status(400).send({ "message": "Bad Request " + err });
     })
 })
 
 router.patch('/update/:id', verified, async (req, res) => {
-    const bundle = Bundle.findById(req.params.id).then(obj => {
-        obj.SKU = req.body.SKU
-        obj.name = req.body.name
-        obj.stock = req.body.stock
-        obj.price = req.body.price
-        obj.weight = req.body.weight
-        obj.UOM = req.body.UOM
-        obj.save()
+    const bundle = Bundle.findById(req.params.id).then(bundle => {
+        bundle.name = req.body.name
+        bundle.qty = req.body.qty
+        bundle.productID = req.body.productID
+        bundle.price = 0
+
+        let lenProduct = bundle.productID.length
+        let lenQty = bundle.qty.length
+    
+        if (lenProduct != lenQty) {
+            return res.status(400).send({
+                "message": "Request not valid :|"
+            })
+        }
+    
+        for (let i = 0; i < lenProduct; i++) {
+            const query = Product.where({ SKU: bundle.productID[i] })
+            query.findOne((err, product) => {
+                if (err) {
+                    console.log(err)
+                    return res.status(400).send({
+                        "message": "Bad Request " + err
+                    })
+                }
+                // console.log(product)
+                if (product) {
+                    if (product.stock < bundle.productID[i].qty) {
+                        return res.status(400).send({
+                            "message": "Not enough stock :("
+                        })
+                    }
+                    else {
+                        bundle.price += (product.price * bundle.qty[i])
+                        // console.log(bundle)
+                    }
+                }
+                else {
+                    return res.status(400).send({
+                        "message": "Product not found :("
+                    })
+                }
+    
+            })
+        }
+
+        bundle.save()
             .then(
                 (data) => {
-                    return res.json(data);
+                    return res.json(data)
                 }
             ).catch(err => {
+                console.log("error!")
                 return res.status(400).send({ "message": "Bad Request " + err });
             })
     }).catch(err => {
